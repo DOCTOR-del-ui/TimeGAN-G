@@ -189,7 +189,7 @@ class BaseModel():
 
     self.save_weights(self.opt.iteration)
     self.generated_data = self.generation(12800)
-    data_name = self.data_name
+    data_name = self.opt.data_name
     save_path = os.path.join("output", "TimeGAN", data_name, f"{data_name}.npz")
     np.savez(save_path, data=self.generated_data)
     print('Finish Synthetic Data Generation')
@@ -226,26 +226,35 @@ class BaseModel():
     print(metric_results)
 """
 
-  def generation(self, num_samples, mean = 0.0, std = 1.0):
-    if num_samples == 0:
-      return None, None
-    ## Synthetic data generation
-    self.X0, self.T = batch_generator(self.ori_data, self.ori_time, self.opt.batch_size)
-    self.Z = random_generator(num_samples, self.opt.z_dim, self.T, self.max_seq_len, mean, std)
-    self.Z = torch.tensor(self.Z, dtype=torch.float32).to(self.device)
-    self.E_hat = self.netg(self.Z)    # [?, 24, 24]
-    self.H_hat = self.nets(self.E_hat)  # [?, 24, 24]
-    generated_data_curr = self.netr(self.H_hat).cpu().detach().numpy()  # [?, 24, 24]
+  def generation(self, num_samples, mean=0.0, std=1.0):
+      if num_samples == 0:
+          return None
 
-    generated_data = list()
-    for i in range(num_samples):
-      temp = generated_data_curr[i, :self.ori_time[i], :]
-      generated_data.append(temp)
-    
-    # Renormalization
-    generated_data = generated_data * self.max_val
-    generated_data = generated_data + self.min_val
-    return generated_data
+      # ----------- 1. 构造正确的 T -----------  
+      # 想生成 num_samples 个 window 长度的数据
+      T_fixed = [self.max_seq_len] * num_samples
+
+      # ----------- 2. 随机噪声 -------------
+      Z = random_generator(num_samples, self.opt.z_dim, T_fixed, self.max_seq_len)
+      Z = torch.tensor(Z, dtype=torch.float32).to(self.device)
+
+      # ----------- 3. 模型生成 -------------
+      E_hat = self.netg(Z)
+      H_hat = self.nets(E_hat)
+      generated = self.netr(H_hat).cpu().detach().numpy()
+
+      # ----------- 4. 长度裁剪 -------------
+      generated_data = [
+          generated[i, :self.max_seq_len, :]
+          for i in range(num_samples)
+      ]
+
+      # ----------- 5. 反归一化 -------------
+      generated_data = np.array(generated_data)
+      generated_data = generated_data * self.max_val + self.min_val
+
+      return generated_data
+
 
 
 
