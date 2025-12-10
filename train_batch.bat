@@ -10,7 +10,7 @@ for %%i in (1 2 3 4) do (
             --module gru ^
             --hidden_dim 24 ^
             --num_layer 3 ^
-            --iteration 10000 ^
+            --iteration 5000 ^
             --batch_size 128 ^
             --metric_iteration 10
     )
